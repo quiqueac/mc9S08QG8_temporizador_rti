@@ -21,16 +21,15 @@
 ;
             ORG    	$60		; Insert your data definition here
 M60: 		DS.B   	1		; Contador de segundos de led encendido
-M61: 		DS.B   	1		; Numero de segundos que dura el led encendido
+M61: 		DS.B   	1		; Numero de segundos que debe durar el led encendido
 M62:		DS.B	1		; Contador de segundos de led apagado
-M63:		DS.B	1		; Numero de segundos que dura el led apagado
+M63:		DS.B	1		; Numero de segundos que debe durar el led apagado
 
 ;
 ; code section
 ;
             ORG    	ROMStart
             
-
 _Startup:
             LDHX   	#RAMEnd+1	; initialize the stack pointer
             TXS
@@ -38,12 +37,8 @@ _Startup:
             LDA	  	#$12	; DATO INMEDIATO PARA DESHABILITAR WATCHDOG	
             STA	  	SOPT1	; DESHABILITAR WATCHDOG
             
-            LDA	  	#$53    ; Configura IRQMOD=1, IRQPE=1, IRQPDD=1, IRQIE=1
-        	STA   	IRQSC	; Usando PIN PTA5 como IRQ
-            
-            CLI		; enable interrupts
-            
             BSET 	0,PTBDD		; Pin 0 del puerto B como salida
+            BCLR	PTADD_PTADD0,PTADD	; Pin 0 del puerto A como boton para cambiar la intensidad del led
             
             MOV		#$00,M60	; Inicializacion de M60
             
@@ -58,7 +53,25 @@ Retardo:
 			LDA		#$13	; 1 segundo
 			STA		SRTISC	; Guardar en el registro SRTISC el valor del acumulador
 			CLI		; Habilitar interrupciones
-			BRA		Retardo		; Brinca a la etiqueta retardo
+Inicio_checarPuertoA:		; Comenzar a checar puerto A
+			BRCLR 	0,PTAD,Checar_numero_de_segundos_que_debe_durar_el_led	; Checar si se ha presionado el boton del puerto A
+																			; Logica negativa
+			BRA		Retardo	; Brincar a la etiqueta
+			Checar_numero_de_segundos_que_debe_durar_el_led:		
+						LDA		M61			; Cargar en el acumulador el contenido de la memoria 61
+											; La memoria 61 es el numero de segundos que debe durar el led encendido, 
+											; por defecto es 2 segundos
+												
+						CMP		#$02		; Comparar con 2, si es igual, lo cambiamos a 1 segundo (Cambiar_numero_de_segundos_que_debe_durar_el_led_1)
+						BNE		Cambiar_numero_de_segundos_que_debe_durar_el_led_2		; Si no es igual brincar a la etiqueta
+			Cambiar_numero_de_segundos_que_debe_durar_el_led_1:	; Si es igual,
+						MOV		#$01,M61	; el numero de segundos que debe durar el led encendido ahora es de 1 segundo
+						MOV		#$02,M63	; el numero de segundos que debe durar el led apagado ahora es de 2 segundos
+						BRA		Retardo		; Volver al retardo
+			Cambiar_numero_de_segundos_que_debe_durar_el_led_2:	; Si es igual,
+						MOV		#$02,M61	; el numero de segundos que debe durar el led encendido ahora es de 1 segundo
+						MOV		#$01,M63	; el numero de segundos que debe durar el led apagado ahora es de 2 segundos
+						BRA		Retardo		; Volver al retardo
            
 ;**************************************************************
 ;* Interrupcion_temporizador                                  *
@@ -70,21 +83,21 @@ Interrupcion_temporizador:
 			LDA		#$40	; Limpiar la bandera y detener el temporizador
 			STA		SRTISC	; Guardar en el registro SRTISC el valor del acumulador
 									
-			BRCLR 	0,PTBD,Encender_led	; Checar si el led esta apagado
-Apagar_led:
+			BRCLR 	0,PTBD,Checar_encender_led	; Checar si el led esta apagado
+Checar_apagar_led:
 			INC		M60		; Incrementar contador de segundos de led encendido
 			LDA		M61		; Cargar en el acumulador lo que tiene que durar el led apagado
 			CMP		M60		; Comparar el acumulador con los segundos transcurridos
-			BNE		Continuar	; Si no es igual brincar a la etiqueta Encender_led
-			CLR		M60		; Reset de los segundos transcurridos
+			BNE		Continuar	; Si no es igual brincar a la etiqueta Continuar
+			MOV		#$00,M60	; Reset de los segundos transcurridos
 			BCLR 	0,PTBD	; Apagar el led
 			BRA		Continuar	; Volver a la etiqueta Continuar
-Encender_led:
-			INC		M62		; Decrementar contador de segundos de led encendido
+Checar_encender_led:
+			INC		M62		; Incrementar contador de segundos de led apagado
 			LDA		M63		; Cargar en el acumulador lo que tiene que durar el led apagado
 			CMP		M62		; Comparar el acumulador con los segundos transcurridos
-			BNE		Continuar	; Si no es igual brincar a la etiqueta Apagar_led
-			CLR		M62		; Reset de los segundos transcurridos
+			BNE		Continuar	; Si no es igual brincar a la etiqueta Continuar
+			MOV		#$00,M62	; Reset de los segundos transcurridos
 			BSET 	0,PTBD	; Encender el led
 Continuar:
 			LDA		#$13	; Habilitar el temporizador y empezar el conteo
@@ -92,20 +105,6 @@ Continuar:
 			
 			CLI		; Activa las IRQ
 			RTI   	; Termina la IRQ
-				
-;**************************************************************
-;* Interrupcion_externa - Usando PIN PTA5 como IRQ            *
-;**************************************************************
-
-Interrupcion_externa:	
-			SEI  							; Quita las IRQ
-			
-			BSET 	IRQSC_IRQACK,IRQSC		; Apagar la bandera IRQF
-									
-			;INC 	M61						; Incrementar numero de segundos que dura el retardo
-			
-			CLI   							; Activa las IRQ
-			RTI   							; Termina la IRQ
 
 ;**************************************************************
 ;*                 Interrupt Vectors                          *
@@ -113,9 +112,6 @@ Interrupcion_externa:
 
             ORG	$FFFE
 			DC.W  _Startup						; Reset
-			
-			ORG	$FFFA
-			DC.W  Interrupcion_externa   		; Para el pin IRQ 
 			
 			ORG $FFD0
 			DC.W  Interrupcion_temporizador		; Interrupcion del temporizador

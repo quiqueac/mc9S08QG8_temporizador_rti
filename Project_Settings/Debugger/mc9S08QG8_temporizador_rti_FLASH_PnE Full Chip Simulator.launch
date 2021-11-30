@@ -28,7 +28,7 @@
 <booleanAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.Embedded Initialization.useInitFile" value="false"/>
 <booleanAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.Embedded Initialization.useMemoryConfigFile" value="true"/>
 <stringAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.HC08 Debugger.processor" value="MC9S08QG8"/>
-<booleanAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.HC08 Interrupt.interrupt_disabled" value="false"/>
+<booleanAttribute key="com.freescale.cdt.debug.cw.CW_SHADOWED_PREF.HC08 Interrupt.interrupt_disabled" value="true"/>
 <listAttribute key="com.freescale.cdt.debug.cw.CoreNameList">
 <listEntry value="MC9S08QG8#0"/>
 </listAttribute>
